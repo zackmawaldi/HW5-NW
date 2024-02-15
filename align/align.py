@@ -27,15 +27,10 @@ class NeedlemanWunsch:
             Gap extension penalty
     """
     def __init__(self, sub_matrix_file: str, gap_open: float, gap_extend: float):
-        # Init alignment and gap matrices
+        # Init alignment, gap, and directionality matrices
         self._align_matrix = None
-        self._gapA_matrix = None
-        self._gapB_matrix = None
-
-        # Init matrices for backtrace procedure
-        self._back = None
-        self._back_A = None
-        self._back_B = None
+        self._where_from = None
+        self._is_gap = None
 
         # Init alignment_score
         self.alignment_score = 0
@@ -100,8 +95,6 @@ class NeedlemanWunsch:
 
     def align(self, seqA: str, seqB: str) -> Tuple[float, str, str]:
         """
-        TODO
-        
         This function performs global sequence alignment of two strings
         using the Needleman-Wunsch Algorithm
         
@@ -125,15 +118,68 @@ class NeedlemanWunsch:
         # Initializing sequences for use in backtrace method
         self._seqA = seqA
         self._seqB = seqB
+
+        gap_open = self.gap_open
+        gap_extend = self.gap_extend
+
+        # initialize sequences
+        m, n = len(seqA), len(seqB)
+
+        # initialize matrices
+        self._align_matrix = np.zeros((m + 1, n + 1))
+        self._where_from   = np.empty((m + 1, n + 1), dtype=object) # will host tuples indicating (i,j) where we came from
+        self._is_gap       = np.zeros((m + 1, n + 1))
+
+        # initialize first row and column of alignment matrix
+        for i in range(1, m + 1):
+            self._align_matrix[i][0] = gap_open + i * gap_extend
+            self._is_gap[i][0]       = 1
+
+
+        for j in range(1, n + 1):
+            self._align_matrix[0][j] = gap_open + j * gap_extend
+            self._is_gap[0][j]       = 1
         
-        # TODO: Initialize matrix private attributes for use in alignment
-        # create matrices for alignment scores, gaps, and backtracing
-        pass
+        # fill the scoring matrix
+        for i in range(1, m + 1):
+            for j in range(1, n + 1):
+                # score for a match or mismatch
+                match_score = self.sub_dict[(seqA[i-1], seqB[j-1])]
+                diag_score  = self._align_matrix[i-1][j-1] + match_score
+
+                # scores for introducing gaps:
+                # up/left cell score + extend score + new gap penality (_is_gap == 0 was not a gap)
+                up_score   = self._align_matrix[i-1][j] + gap_extend + (gap_open if self._is_gap[i-1][j] == 0 else 0)
+                left_score = self._align_matrix[i][j-1] + gap_extend + (gap_open if self._is_gap[i][j-1] == 0 else 0)
+
+                # choose the best score
+                possible_scores = [ diag_score, up_score, left_score ]
+                self._align_matrix[i][j] = max(possible_scores)
+
+                # mark _is_gap if max is not diag_score
+                # 0 = diag, 1 = up, 2 = left
+                
+                score_type = np.argmax(possible_scores)
+
+                if score_type != 0:
+                    self._is_gap[i][j] = 1
+                
+                # mark where we came from
+                if score_type == 0: self._where_from[i][j] = ( i-1, j-1 )
+                if score_type == 1: self._where_from[i][j] = ( i-1, j )
+                if score_type == 2: self._where_from[i][j] = ( i, j-1 )
+                
+
+        # assign alignment score
+        self.alignment_score = self._align_matrix[m][n]
+
+
+
+        print(self._align_matrix)
+        print(self._is_gap)
+        print(self._where_from)
 
         
-        # TODO: Implement global alignment here
-        pass      		
-        		    
         return self._backtrace()
 
     def _backtrace(self) -> Tuple[float, str, str]:
@@ -150,7 +196,41 @@ class NeedlemanWunsch:
          	(alignment score, seqA alignment, seqB alignment) : Tuple[float, str, str]
          		the score and corresponding strings for the alignment of seqA and seqB
         """
-        pass
+        
+        # start from the bottom-right corner of the matrix
+        i, j = len(self._seqA), len(self._seqB)
+        self.seqA_align = ""
+        self.seqB_align = ""
+
+        # loop until we reach the top-left corner == (0, 0)
+        while i > 0 or j > 0:
+            current_position = (i, j)
+            
+            # edge-case if we're at the top row or left-most column, we can only go up or left, respectively
+            if   i == 0:
+                prev_position = (i, j-1)
+            elif j == 0:
+                prev_position = (i-1, j)
+            else:
+                prev_position = self._where_from[i][j]
+            
+            direction = tuple( np.subtract(current_position, prev_position) ) # should return (#,#)
+
+            # diagonal move
+            if direction == (1, 1):
+                self.seqA_align = self._seqA[i-1] + self.seqA_align
+                self.seqB_align = self._seqB[j-1] + self.seqB_align
+                i, j = i-1, j-1
+            # up move
+            elif direction == (1, 0):
+                self.seqA_align = self._seqA[i-1] + self.seqA_align
+                self.seqB_align = "-" + self.seqB_align
+                i = i - 1
+            # left move
+            elif direction == (0, 1):
+                self.seqA_align = "-" + self.seqA_align
+                self.seqB_align = self._seqB[j-1] + self.seqB_align
+                j = j - 1
 
         return (self.alignment_score, self.seqA_align, self.seqB_align)
 
