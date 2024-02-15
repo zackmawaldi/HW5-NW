@@ -173,13 +173,6 @@ class NeedlemanWunsch:
         # assign alignment score
         self.alignment_score = self._align_matrix[m][n]
 
-
-
-        print(self._align_matrix)
-        print(self._is_gap)
-        print(self._where_from)
-
-        
         return self._backtrace()
 
     def _backtrace(self) -> Tuple[float, str, str]:
