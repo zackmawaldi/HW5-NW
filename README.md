@@ -1,4 +1,4 @@
-# Project 5
+# Project 5 [![project5](https://github.com/zackmawaldi/HW5-NW/actions/workflows/test.yml/badge.svg)](https://github.com/zackmawaldi/HW5-NW/actions/workflows/test.yml)
 Needleman Wunsch Algorithm
 
 
